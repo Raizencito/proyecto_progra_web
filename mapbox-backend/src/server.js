@@ -71,3 +71,5 @@ server.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
   console.log(`📊 Sistema de Tracking Normalizado v2.0`);
 });
+
+// En el endpoint de login, antes del try-catch

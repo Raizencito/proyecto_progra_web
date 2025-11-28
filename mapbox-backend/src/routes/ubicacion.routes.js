@@ -6,7 +6,7 @@ const router = express.Router();
 // POST /api/ubicacion/registrar
 router.post("/registrar", async (req, res) => {
   const io = req.app.get("io");
-  const { empleadoId, lat, lng, precision, bateria } = req.body;
+  const { empleadoId, lat, lng, precision } = req.body;
 
   try {
     // 1. Obtener la asignación activa del empleado
@@ -98,7 +98,6 @@ router.get("/empleado/:id", async (req, res) => {
         ST_X(u.ubicacion) as lng,
         ST_Y(u.ubicacion) as lat,
         u.precision,
-        u.bateria,
         u.fecha_hora
       FROM ubicaciones u
       WHERE u.id_empleado = $1
