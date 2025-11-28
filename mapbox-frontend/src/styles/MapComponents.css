@@ -1,0 +1,190 @@
+/* Contenedor principal del mapa */
+.map-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 500px;
+}
+
+.map-container {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Estados de carga y error */
+.map-loading, .map-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+  text-align: center;
+  padding: 2rem;
+}
+
+.map-loading {
+  background: #f3f4f6;
+  border: 2px dashed #d1d5db;
+  color: #6b7280;
+}
+
+.map-error {
+  background: #fee2e2;
+  border: 2px dashed #dc2626;
+  color: #dc2626;
+}
+
+/* Controles de dibujo */
+.drawing-controls-panel {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  width: 300px;
+  z-index: 10;
+}
+
+.panel-header {
+  background: #3b82f6;
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px 8px 0 0;
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.panel-content {
+  padding: 16px;
+}
+
+.instructions {
+  background: #f8fafc;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+.instructions ol {
+  margin: 8px 0 0 0;
+  padding-left: 20px;
+}
+
+.instructions li {
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.status {
+  padding: 8px 12px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+}
+
+.controls button {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.controls button:first-child {
+  background: #10b981;
+  color: white;
+}
+
+.controls button:first-child:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.controls button:last-child {
+  background: #ef4444;
+  color: white;
+}
+
+.controls button:last-child:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.controls button:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* Marcadores de empleados */
+.employee-marker {
+  cursor: pointer;
+}
+
+.marker-content {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  border: 3px solid white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  transition: all 0.2s;
+}
+
+.marker-content:hover {
+  transform: scale(1.1);
+}
+
+/* Popups */
+.geocerca-popup, .employee-popup {
+  font-family: Arial, sans-serif;
+  min-width: 200px;
+}
+
+.geocerca-popup h3, .employee-popup h3 {
+  margin: 0 0 8px 0;
+  color: #1f2937;
+  font-size: 16px;
+  border-bottom: 2px solid #3b82f6;
+  padding-bottom: 4px;
+}
+
+.geocerca-popup p, .employee-popup p {
+  margin: 6px 0;
+  font-size: 14px;
+  color: #4b5563;
+}
+
+/* Forzar visibilidad de controles de Mapbox Draw */
+.mapbox-gl-draw_ctrl-draw-btn {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.mapbox-gl-draw_polygon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'%3E%3C/path%3E%3Ccircle cx='12' cy='10' r='3'%3E%3C/circle%3E%3C/svg%3E") !important;
+}
+
+.mapbox-gl-draw_trash {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='3 6 5 6 21 6'%3E%3C/polyline%3E%3Cpath d='M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'%3E%3C/path%3E%3C/svg%3E") !important;
+}

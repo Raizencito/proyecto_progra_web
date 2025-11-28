@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { lugarService } from '../../services/lugarService';
+import { useNavigate } from 'react-router-dom';
 
 const WorkplaceTab = () => {
   const [lugares, setLugares] = useState([]);
@@ -12,6 +13,8 @@ const WorkplaceTab = () => {
     direccion: '',
     id_departamento: ''
   });
+
+  const navigate = useNavigate();
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -45,10 +48,13 @@ const WorkplaceTab = () => {
     e.preventDefault();
     try {
       if (editingLugar) {
+        // ✅ ACTUALIZAR lugar existente (solo datos básicos)
         await lugarService.updateLugar(editingLugar.id, formData);
         alert('Lugar actualizado exitosamente');
+        resetForm();
+        loadLugares();
       } else {
-        // Para crear, necesitamos una geocerca básica
+        // ✅ CREAR nuevo lugar (sin geocerca - se agregará después en el mapa)
         const lugarData = {
           ...formData,
           geocerca: {
@@ -56,24 +62,31 @@ const WorkplaceTab = () => {
             coordinates: [[
               [-68.152, -16.500],
               [-68.148, -16.500],
-              [-68.148, -16.496],
+              [-68.148, -16.496], 
               [-68.152, -16.496],
               [-68.152, -16.500]
             ]]
           }
         };
-        await lugarService.createLugar(lugarData);
-        alert('Lugar creado exitosamente');
+        const nuevoLugar = await lugarService.createLugar(lugarData);
+        alert('Lugar creado exitosamente. Ahora puedes definir la geocerca en el mapa.');
+        
+        // 🔥 NUEVO: Redirigir al mapa para definir geocerca
+        navigate('/mapa', { 
+          state: { 
+            modoGeocerca: true, 
+            lugarId: nuevoLugar.lugar.id,
+            lugarNombre: nuevoLugar.lugar.nombre 
+          } 
+        });
       }
-      
-      resetForm();
-      loadLugares();
     } catch (error) {
       console.error('Error guardando lugar:', error);
       alert(error.error || 'Error al guardar lugar');
     }
   };
 
+  // ... el resto del código permanece igual
   const handleEdit = (lugar) => {
     setEditingLugar(lugar);
     setFormData({
@@ -97,6 +110,17 @@ const WorkplaceTab = () => {
       console.error('Error eliminando lugar:', error);
       alert(error.error || 'Error al eliminar lugar');
     }
+  };
+
+  // 🔥 NUEVA FUNCIÓN: Editar geocerca desde la lista
+  const handleEditGeocerca = (lugar) => {
+    navigate('/mapa', { 
+      state: { 
+        modoGeocerca: true, 
+        lugarId: lugar.id,
+        lugarNombre: lugar.nombre 
+      } 
+    });
   };
 
   const resetForm = () => {
@@ -129,7 +153,7 @@ const WorkplaceTab = () => {
         </button>
       </div>
 
-      {/* Formulario */}
+      {/* Formulario (igual que antes) */}
       {showForm && (
         <div className="form-card">
           <h3>{editingLugar ? 'Editar Lugar' : 'Nuevo Lugar'}</h3>
@@ -190,7 +214,7 @@ const WorkplaceTab = () => {
         </div>
       )}
 
-      {/* Lista de Lugares */}
+      {/* Lista de Lugares - AGREGAR BOTÓN DE GEOCERCA */}
       <div className="table-container">
         {loading ? (
           <div className="loading">Cargando lugares...</div>
@@ -201,6 +225,7 @@ const WorkplaceTab = () => {
                 <th>Nombre</th>
                 <th>Departamento</th>
                 <th>Empleados Asignados</th>
+                <th>Geocerca</th>
                 <th>Estado</th>
                 <th>Acciones</th>
               </tr>
@@ -221,6 +246,11 @@ const WorkplaceTab = () => {
                     </span>
                   </td>
                   <td>
+                    <span className={`badge ${lugar.geocerca ? 'badge-success' : 'badge-warning'}`}>
+                      {lugar.geocerca ? 'Definida' : 'Por definir'}
+                    </span>
+                  </td>
+                  <td>
                     <span className={`status ${lugar.activo ? 'active' : 'inactive'}`}>
                       {lugar.activo ? 'Activo' : 'Inactivo'}
                     </span>
@@ -230,9 +260,16 @@ const WorkplaceTab = () => {
                       <button
                         className="btn btn-sm btn-outline"
                         onClick={() => handleEdit(lugar)}
-                        title="Editar"
+                        title="Editar datos"
                       >
                         <i className="fas fa-edit"></i>
+                      </button>
+                      <button
+                        className="btn btn-sm btn-outline btn-info"
+                        onClick={() => handleEditGeocerca(lugar)}
+                        title="Editar geocerca en mapa"
+                      >
+                        <i className="fas fa-draw-polygon"></i>
                       </button>
                       <button
                         className="btn btn-sm btn-outline btn-danger"

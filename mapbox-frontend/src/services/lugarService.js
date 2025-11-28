@@ -1,33 +1,33 @@
 import { api } from './api';
 
 export const lugarService = {
-  // Obtener todos los lugares
+  // ✅ EXISTE en backend
   getLugares: async () => {
     return await api.get('/lugares');
   },
 
-  // Obtener departamentos para selects
-  getDepartamentos: async () => {
-    return await api.get('/lugares/departamentos');
-  },
-
-  // Crear nuevo lugar
+  // ✅ EXISTE en backend - CREAR LUGAR
   createLugar: async (lugarData) => {
     return await api.post('/lugares', lugarData);
   },
 
-  // Actualizar lugar
+  // ✅ EXISTE en backend - ACTUALIZAR LUGAR
   updateLugar: async (id, lugarData) => {
     return await api.put(`/lugares/${id}`, lugarData);
   },
 
-  // Actualizar solo geocerca
-  updateGeocerca: async (id, geocercaData) => {
-    return await api.put(`/lugares/${id}/geocerca`, geocercaData);
-  },
-
-  // Eliminar lugar (borrado lógico)
+  // ✅ EXISTE en backend - ELIMINAR LUGAR
   deleteLugar: async (id) => {
     return await api.delete(`/lugares/${id}`);
+  },
+
+  // ✅ EXISTE en backend - OBTENER DEPARTAMENTOS
+  getDepartamentos: async () => {
+    return await api.get('/lugares/departamentos');
+  },
+
+  // ✅ EXISTE en backend - ACTUALIZAR GEOCERCA
+  updateGeocerca: async (id, geocercaData) => {
+    return await api.put(`/lugares/${id}/geocerca`, geocercaData);
   }
 };

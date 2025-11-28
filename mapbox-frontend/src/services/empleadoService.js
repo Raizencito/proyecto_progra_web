@@ -13,17 +13,8 @@ export const empleadoService = {
     return await api.put(`/empleados/${id}`, empleadoData);
   },
 
-  updateLugarTrabajo: async (id, id_lugar_trabajo) => {
-    return await api.put(`/empleados/${id}/lugar`, { id_lugar_trabajo });
-  },
-
-  // Usando endpoints específicos PATCH (RECOMENDADO)
-  activateEmpleado: async (id) => {
-    return await api.patch(`/empleados/${id}/activar`);
-  },
-
-  deactivateEmpleado: async (id) => {
-    return await api.patch(`/empleados/${id}/desactivar`);
+  toggleActivo: async (id) => {
+    return await api.patch(`/empleados/${id}/toggle-activo`);
   },
 
   getUbicacionEmpleado: async (id) => {

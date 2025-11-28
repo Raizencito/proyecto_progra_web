@@ -1,10 +1,10 @@
 import express from "express";
 import { pool } from "../config/db.js";
-
+import { requireAdmin, requireAdminOrSupervisor } from '../middleware/authMiddleware.js';
 const router = express.Router();
 
 // GET /api/lugares (YA EXISTE)
-router.get("/", async (req, res) => {
+router.get("/", requireAdminOrSupervisor,async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT 
@@ -26,7 +26,7 @@ router.get("/", async (req, res) => {
 });
 
 // POST /api/lugares - CREAR NUEVO LUGAR
-router.post("/", async (req, res) => {
+router.post("/",requireAdmin, async (req, res) => {
   const { nombre, direccion, id_departamento, geocerca } = req.body;
   
   try {
@@ -65,7 +65,7 @@ router.post("/", async (req, res) => {
 });
 
 // PUT /api/lugares/:id - ACTUALIZAR LUGAR
-router.put("/:id", async (req, res) => {
+router.put("/:id",requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { nombre, direccion, id_departamento, activo } = req.body;
 
@@ -92,7 +92,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // PUT /api/lugares/:id/geocerca - ACTUALIZAR SOLO GEOCERCA
-router.put("/:id/geocerca", async (req, res) => {
+router.put("/:id/geocerca",requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { geocerca } = req.body;
 
@@ -119,7 +119,7 @@ router.put("/:id/geocerca", async (req, res) => {
 });
 
 // DELETE /api/lugares/:id - ELIMINAR LUGAR (BORRADO LÓGICO)
-router.delete("/:id", async (req, res) => {
+router.delete("/:id",requireAdmin, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -159,7 +159,7 @@ router.delete("/:id", async (req, res) => {
 });
 
 // GET /api/departamentos - OBTENER DEPARTAMENTOS PARA SELECT
-router.get("/departamentos", async (req, res) => {
+router.get("/departamentos",requireAdminOrSupervisor, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT id, nombre 

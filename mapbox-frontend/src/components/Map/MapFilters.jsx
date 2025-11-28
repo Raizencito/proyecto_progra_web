@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useEmpleados } from '../../hooks/useEmpleados';
-import { departamentoService } from '../../services/departamentoService'; // ← NUEVO
+import { lugarService } from '../../services/lugarService';
 
 const MapFilters = ({ onFiltersChange }) => {
   const { data: empleados, loading: empleadosLoading } = useEmpleados();
@@ -17,36 +17,18 @@ const MapFilters = ({ onFiltersChange }) => {
   useEffect(() => {
     const loadDepartamentos = async () => {
       try {
-        setLoadingDeptos(true);
-        console.log('🏢 Cargando departamentos...');
-        
-        // INTENTAR CON EL NUEVO SERVICIO
-        try {
-          const deptosData = await departamentoService.getDepartamentos();
-          console.log('✅ Departamentos cargados:', deptosData);
-          setDepartamentos(deptosData.map(d => d.nombre));
-        } catch (error) {
-          console.log('⚠️ Falló servicio departamentos, intentando alternativa...');
-          // Alternativa: extraer de empleados
-          if (empleados && empleados.length > 0) {
-            const deptosFromEmpleados = [...new Set(empleados.map(emp => emp.departamento))].filter(Boolean);
-            console.log('✅ Departamentos de empleados:', deptosFromEmpleados);
-            setDepartamentos(deptosFromEmpleados);
-          }
-        }
-        
+        const data = await lugarService.getDepartamentos();
+        setDepartamentos(data);
       } catch (error) {
-        console.error('❌ Error cargando departamentos:', error);
+        console.error('Error cargando departamentos:', error);
         setDepartamentos([]);
       } finally {
         setLoadingDeptos(false);
       }
     };
 
-    if (empleados) {
-      loadDepartamentos();
-    }
-  }, [empleados]);
+    loadDepartamentos(); // ✅ Cargar siempre, no depende de empleados
+  }, []); // ✅ Quitar dependencia de empleados
 
   // Emitir cambios de filtros
   useEffect(() => {
@@ -100,7 +82,7 @@ const MapFilters = ({ onFiltersChange }) => {
         >
           <option value="">Todos los departamentos</option>
           {departamentos.map(depto => (
-            <option key={depto} value={depto}>{depto}</option>
+            <option key={depto.id} value={depto.id}>{depto.nombre}</option>
           ))}
         </select>
         {departamentos.length === 0 && (

@@ -1,23 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import Sidebar from '../components/Layout/Sidebar';
 import MapComponent from '../components/Map/MapComponent';
 import MapFilters from '../components/Map/MapFilters';
 import EmployeesPanel from '../components/Map/EmployeesPanel';
 import { useAuth } from '../context/AuthContext';
+import { useLocation } from 'react-router-dom';
 
 const MapView = () => {
   const { user } = useAuth();
-  const [filters, setFilters] = useState({
-    departamento: '',
-    mostrarGeocercas: true,
-    empleado: '',
-    buscarTexto: ''
-  });
-
-  const handleFiltersChange = (newFilters) => {
-    console.log('🔧 Filtros actualizados:', newFilters);
-    setFilters(newFilters);
-  };
+  const location = useLocation();
+  
+  // 🔥 NUEVO: Detectar si venimos para editar geocerca
+  const { modoGeocerca, lugarId, lugarNombre } = location.state || {};
 
   return (
     <div className="app-container">
@@ -25,7 +19,9 @@ const MapView = () => {
       
       <div className="main-content">
         <header className="content-header">
-          <h1>Mapa en Tiempo Real</h1>
+          <h1>
+            {modoGeocerca ? `Definiendo Geocerca: ${lugarNombre}` : 'Mapa en Tiempo Real'}
+          </h1>
           <div className="user-info">
             <span>{user?.nombres} {user?.paterno}</span>
             <i className="fas fa-user-circle"></i>
@@ -33,17 +29,19 @@ const MapView = () => {
         </header>
 
         <div className="content map-content">
-          <div className="map-layout">
-            {/* Panel de filtros */}
-            <div className="filters-panel">
-              <MapFilters onFiltersChange={handleFiltersChange} />
-              <EmployeesPanel filters={filters} />
-            </div>
-            
-            {/* Mapa principal */}
-            <div className="map-panel">
-              <MapComponent filters={filters} />
-            </div>
+          <div className="map-container">
+            <MapFilters />
+            {/* 🔥 Pasar props al MapComponent */}
+            <MapComponent 
+              mode={modoGeocerca ? "edit" : "view"}
+              selectedLugar={modoGeocerca ? { id: lugarId, nombre: lugarNombre } : null}
+              onGeocercaSaved={(geocerca) => {
+                // Aquí llamarás a lugarService.updateGeocerca(lugarId, geocerca)
+                console.log('Geocerca a guardar:', geocerca);
+                alert(`Geocerca guardada para ${lugarNombre}`);
+              }}
+            />
+            {!modoGeocerca && <EmployeesPanel />}
           </div>
         </div>
       </div>

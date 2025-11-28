@@ -1,210 +1,133 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
+import MapboxDraw from '@mapbox/mapbox-gl-draw';
+import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { lugarService } from '../../services/lugarService';
-import { getPredefinedGeocerca } from '../../utils/geoUtils';
 import { empleadoService } from '../../services/empleadoService';
 
-// Configurar Mapbox
 const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
 mapboxgl.accessToken = mapboxToken;
 
-const MapComponent = () => {
+const MapComponent = ({ mode = 'view', selectedLugar = null, onGeocercaSaved = null }) => {
   const mapContainer = useRef(null);
   const map = useRef(null);
+  const draw = useRef(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [error, setError] = useState(null);
   const [lugares, setLugares] = useState([]);
   const [empleados, setEmpleados] = useState([]);
-  const [empleadosConUbicacion, setEmpleadosConUbicacion] = useState([]);
-  const initialized = useRef(false);
+  const [currentGeocerca, setCurrentGeocerca] = useState(null);
 
-  // Cargar lugares con geocercas
+  // 1. INICIALIZACIÓN BÁSICA DEL MAPA
   useEffect(() => {
-    const loadLugares = async () => {
-      try {
-        console.log('🏢 Cargando lugares de trabajo...');
-        const lugaresData = await lugarService.getLugares();
-        console.log('✅ Lugares cargados:', lugaresData);
-        setLugares(lugaresData);
-      } catch (error) {
-        console.error('❌ Error cargando lugares:', error);
-      }
-    };
+    if (!mapContainer.current) return;
 
-    loadLugares();
+    console.log('🗺️ Inicializando mapa...');
+
+    if (!mapboxToken) {
+      setError('Token de Mapbox no configurado');
+      return;
+    }
+
+    try {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: [-64.75, -16.50],
+        zoom: 5
+      });
+
+      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+      map.current.on('load', () => {
+        console.log('🎉 Mapa cargado!');
+        setMapLoaded(true);
+        loadLugares();
+        loadEmpleados();
+      });
+
+    } catch (err) {
+      console.error('Error:', err);
+      setError('Error al cargar el mapa');
+    }
   }, []);
 
-  // Cargar empleados
+  // 2. CONFIGURAR DIBUJO CUANDO EL MAPA ESTÉ LISTO
   useEffect(() => {
-    const loadEmpleados = async () => {
-      try {
-        console.log('👥 Cargando empleados...');
-        const empleadosData = await empleadoService.getEmpleados();
-        console.log('✅ Empleados cargados:', empleadosData);
-        setEmpleados(empleadosData);
-        
-        // Simular ubicaciones para los empleados
-        const empleadosConUbicacionSimulada = empleadosData.map(empleado => ({
-          ...empleado,
-          ubicacion: getUbicacionSimulada(empleado.lugar_trabajo)
-        }));
-        
-        setEmpleadosConUbicacion(empleadosConUbicacionSimulada);
-        
-      } catch (error) {
-        console.error('❌ Error cargando empleados:', error);
+    if (!mapLoaded || !map.current) return;
+
+    console.log('🎨 Configurando herramientas de dibujo...');
+
+    const drawInstance = new MapboxDraw({
+      displayControlsDefault: true,
+      controls: {
+        polygon: true,
+        trash: true
       }
-    };
+    });
 
-    loadEmpleados();
-  }, []);
+    map.current.addControl(drawInstance, 'top-left');
+    draw.current = drawInstance;
 
-  // Función para obtener ubicación simulada basada en el lugar de trabajo
-  const getUbicacionSimulada = (lugarTrabajo) => {
-    const ubicaciones = {
-      'Sede Central La Paz': { lng: -68.150, lat: -16.498 },
-      'Planta Cochabamba': { lng: -66.162, lat: -17.397 },
-      'Oficina Santa Cruz': { lng: -63.184, lat: -17.780 }
-    };
-    
-    return ubicaciones[lugarTrabajo] || { lng: -64.75, lat: -16.50 };
-  };
+    // Eventos de dibujo
+    map.current.on('draw.create', updateCurrentGeocerca);
+    map.current.on('draw.update', updateCurrentGeocerca);
+    map.current.on('draw.delete', updateCurrentGeocerca);
 
-  // Función para obtener el color del marcador según el estado
-  const getMarkerColor = (estado) => {
-    switch (estado) {
-      case 'dentro':
-        return '#10B981'; // Verde
-      case 'fuera':
-        return '#EF4444'; // Rojo
-      default:
-        return '#6B7280'; // Gris
+  }, [mapLoaded]);
+
+  // 3. CARGAR DATOS
+  const loadLugares = async () => {
+    try {
+      const lugaresData = await lugarService.getLugares();
+      setLugares(lugaresData);
+      drawGeocercas(lugaresData);
+    } catch (error) {
+      console.error('Error cargando lugares:', error);
     }
   };
 
-  // Función para obtener el icono según el estado
-  const getMarkerIcon = (estado) => {
-    switch (estado) {
-      case 'dentro':
-        return 'fa-check-circle';
-      case 'fuera':
-        return 'fa-exclamation-triangle';
-      default:
-        return 'fa-user';
+  const loadEmpleados = async () => {
+    try {
+      const empleadosData = await empleadoService.getEmpleados();
+      setEmpleados(empleadosData);
+      addEmployeeMarkers(empleadosData);
+    } catch (error) {
+      console.error('Error cargando empleados:', error);
     }
   };
 
-  // Función para agregar marcadores de empleados al mapa
-  // Función para agregar marcadores de empleados al mapa (VERSIÓN CORREGIDA)
-const addEmployeeMarkers = () => {
-  if (!map.current || empleadosConUbicacion.length === 0) return;
+  // 4. DIBUJAR GEOCERCAS EXISTENTES
+  const drawGeocercas = (lugaresData) => {
+    if (!map.current || lugaresData.length === 0) return;
 
-  console.log('📍 Agregando marcadores de empleados...');
-
-  // Limpiar marcadores anteriores
-  const existingMarkers = document.querySelectorAll('.employee-marker');
-  existingMarkers.forEach(marker => marker.remove());
-
-  // Agregar marcadores para cada empleado
-  empleadosConUbicacion.forEach(empleado => {
-    if (!empleado.ubicacion) return;
-
-    // Crear elemento HTML personalizado para el marcador
-    const markerEl = document.createElement('div');
-    markerEl.className = 'employee-marker';
-    markerEl.innerHTML = `
-      <div class="marker-content" style="
-        background-color: ${getMarkerColor(empleado.ultimo_estado)};
-      ">
-        <i class="fas ${getMarkerIcon(empleado.ultimo_estado)}"></i>
-      </div>
-    `;
-
-    // Crear y agregar el marcador
-    const marker = new mapboxgl.Marker(markerEl)
-      .setLngLat([empleado.ubicacion.lng, empleado.ubicacion.lat])
-      .setPopup(new mapboxgl.Popup({ 
-        offset: 25,
-        className: 'employee-popup'
-      }).setHTML(`
-        <div style="padding: 12px; min-width: 220px; font-family: Arial, sans-serif;">
-          <h3 style="margin: 0 0 8px 0; color: #1f2937; font-size: 16px; border-bottom: 2px solid ${getMarkerColor(empleado.ultimo_estado)}; padding-bottom: 4px;">
-            ${empleado.nombres} ${empleado.paterno}
-          </h3>
-          <p style="margin: 6px 0; font-size: 14px; color: #4b5563;">
-            <strong style="color: #374151;">CI:</strong> ${empleado.ci}
-          </p>
-          <p style="margin: 6px 0; font-size: 14px; color: #4b5563;">
-            <strong style="color: #374151;">Teléfono:</strong> ${empleado.telefono || 'N/A'}
-          </p>
-          <p style="margin: 6px 0; font-size: 14px; color: #4b5563;">
-            <strong style="color: #374151;">Lugar:</strong> ${empleado.lugar_trabajo}
-          </p>
-          <p style="margin: 6px 0; font-size: 14px;">
-            <strong style="color: #374151;">Estado:</strong> 
-            <span style="color: ${getMarkerColor(empleado.ultimo_estado)}; font-weight: bold; margin-left: 4px;">
-              ${empleado.ultimo_estado === 'dentro' ? '✅ Dentro' : '❌ Fuera'}
-            </span>
-          </p>
-        </div>
-      `))
-      .addTo(map.current);
-
-    markerEl.addEventListener('mouseenter', () => {
-      markerEl.classList.add('marker-hover');
-    });
-
-    markerEl.addEventListener('mouseleave', () => {
-      markerEl.classList.remove('marker-hover');
-    });
-  });
-
-  console.log(`✅ ${empleadosConUbicacion.length} marcadores de empleados agregados`);
-};
-
-  // Función para dibujar geocercas (la que ya teníamos)
-  const drawGeocercas = () => {
-  if (!map.current || lugares.length === 0) return;
-
-  console.log('🎨 Dibujando geocercas...');
-
-  try {
-    // Crear GeoJSON con las geocercas
     const geocercasGeoJSON = {
       type: 'FeatureCollection',
-      features: lugares.map(lugar => {
-        const geocerca = getPredefinedGeocerca(lugar.nombre);
-        
-        return {
-          type: 'Feature',
-          geometry: geocerca,
-          properties: {
-            id: lugar.id,
-            nombre: lugar.nombre,
-            departamento: lugar.departamento,
-            empleados_asignados: lugar.empleados_asignados
-          }
-        };
-      }).filter(feature => feature.geometry !== null)
+      features: lugaresData.map(lugar => ({
+        type: 'Feature',
+        geometry: getGeocercaBasica(lugar.nombre),
+        properties: {
+          id: lugar.id,
+          nombre: lugar.nombre,
+          departamento: lugar.departamento
+        }
+      }))
     };
 
-    console.log('📐 GeoJSON creado:', geocercasGeoJSON);
-
-    // Limpiar capas anteriores si existen
+    // Limpiar capas anteriores
     if (map.current.getSource('geocercas')) {
       map.current.removeLayer('geocercas-fill');
       map.current.removeLayer('geocercas-border');
       map.current.removeSource('geocercas');
     }
 
-    // Agregar fuente al mapa
+    // Agregar nuevas capas
     map.current.addSource('geocercas', {
       type: 'geojson',
       data: geocercasGeoJSON
     });
 
-    // Capa de relleno para geocercas
     map.current.addLayer({
       id: 'geocercas-fill',
       type: 'fill',
@@ -216,7 +139,6 @@ const addEmployeeMarkers = () => {
       }
     });
 
-    // Capa de borde para geocercas
     map.current.addLayer({
       id: 'geocercas-border',
       type: 'line',
@@ -227,159 +149,162 @@ const addEmployeeMarkers = () => {
       }
     });
 
-    // Popup al hacer click en geocerca
+    // Popups
     map.current.on('click', 'geocercas-fill', (e) => {
-      const feature = e.features[0];
-      console.log('📍 Click en geocerca:', feature.properties.nombre);
-      
       new mapboxgl.Popup()
         .setLngLat(e.lngLat)
         .setHTML(`
-          <div style="padding: 12px; min-width: 220px; font-family: Arial, sans-serif;">
-            <h3 style="margin: 0 0 8px 0; color: #1f2937; font-size: 16px; border-bottom: 2px solid #3b82f6; padding-bottom: 4px;">
-              ${feature.properties.nombre}
-            </h3>
-            <p style="margin: 6px 0; font-size: 14px; color: #4b5563;">
-              <strong style="color: #374151;">Departamento:</strong> ${feature.properties.departamento}
-            </p>
-            <p style="margin: 6px 0; font-size: 14px; color: #4b5563;">
-              <strong style="color: #374151;">Empleados:</strong> ${feature.properties.empleados_asignados || 0}
-            </p>
-          </div>
+          <h3>${e.features[0].properties.nombre}</h3>
+          <p>${e.features[0].properties.departamento}</p>
         `)
         .addTo(map.current);
     });
+  };
 
-    // Cambiar cursor al hover
-    map.current.on('mouseenter', 'geocercas-fill', () => {
-      if (map.current) {
-        map.current.getCanvas().style.cursor = 'pointer';
-      }
+  // 5. AGREGAR MARCADORES DE EMPLEADOS
+  const addEmployeeMarkers = (empleadosData) => {
+    if (!map.current) return;
+
+    empleadosData.forEach(empleado => {
+      const ubicacion = getUbicacionSimulada(empleado.lugar_trabajo);
+      
+      const markerEl = document.createElement('div');
+      markerEl.innerHTML = '📍';
+      markerEl.style.fontSize = '24px';
+      markerEl.style.cursor = 'pointer';
+
+      new mapboxgl.Marker(markerEl)
+        .setLngLat([ubicacion.lng, ubicacion.lat])
+        .setPopup(new mapboxgl.Popup().setHTML(`
+          <strong>${empleado.nombres} ${empleado.paterno}</strong>
+          <br/>${empleado.lugar_trabajo}
+          <br/>Estado: ${empleado.ultimo_estado}
+        `))
+        .addTo(map.current);
     });
+  };
 
-    map.current.on('mouseleave', 'geocercas-fill', () => {
-      if (map.current) {
-        map.current.getCanvas().style.cursor = '';
+  // 6. FUNCIONES AUXILIARES
+  const getGeocercaBasica = (nombreLugar) => {
+    const geocercas = {
+      'Sede Central La Paz': {
+        type: 'Polygon',
+        coordinates: [[
+          [-68.152, -16.500], [-68.148, -16.500],
+          [-68.148, -16.496], [-68.152, -16.496],
+          [-68.152, -16.500]
+        ]]
+      },
+      'Planta Cochabamba': {
+        type: 'Polygon', 
+        coordinates: [[
+          [-66.165, -17.400], [-66.160, -17.400],
+          [-66.160, -17.395], [-66.165, -17.395],
+          [-66.165, -17.400]
+        ]]
       }
-    });
+    };
+    return geocercas[nombreLugar] || geocercas['Sede Central La Paz'];
+  };
 
-    console.log('✅ Geocercas dibujadas correctamente');
+  const getUbicacionSimulada = (lugarTrabajo) => {
+    const ubicaciones = {
+      'Sede Central La Paz': { lng: -68.150, lat: -16.498 },
+      'Planta Cochabamba': { lng: -66.162, lat: -17.397 }
+    };
+    return ubicaciones[lugarTrabajo] || { lng: -64.75, lat: -16.50 };
+  };
 
+  const updateCurrentGeocerca = () => {
+    if (!draw.current) return;
+    const features = draw.current.getAll();
+    setCurrentGeocerca(features.features.length > 0 ? features.features[0].geometry : null);
+  };
+
+  const handleSaveGeocerca = async () => {
+  if (!currentGeocerca) {
+    alert('Primero dibuja una geocerca!');
+    return;
+  }
+  try {
+    if (onGeocercaSaved && selectedLugar) {
+      // 🔥 GUARDAR GEOCERCA REAL EN EL BACKEND
+      await lugarService.updateGeocerca(selectedLugar.id, currentGeocerca);
+      await onGeocercaSaved(currentGeocerca);
+    }
+    alert('Geocerca guardada exitosamente!');
   } catch (error) {
-    console.error('❌ Error dibujando geocercas:', error);
+    console.error('Error guardando geocerca:', error);
+    alert('Error guardando geocerca: ' + (error.error || 'Error del servidor'));
   }
 };
 
-  // Dibujar geocercas y marcadores cuando el mapa esté listo
-  useEffect(() => {
-    if (mapLoaded) {
-      if (lugares.length > 0) {
-        drawGeocercas();
-      }
-      if (empleadosConUbicacion.length > 0) {
-        addEmployeeMarkers();
-      }
-    }
-  }, [mapLoaded, lugares, empleadosConUbicacion]);
-
-  // Inicialización del mapa (código anterior que ya funciona)
-  useEffect(() => {
-    if (initialized.current || !mapContainer.current) return;
-
-    console.log('🗺️ Inicializando mapa...');
-
-    if (!mapboxToken) {
-      setError('Token de Mapbox no configurado');
-      return;
-    }
-
-    try {
-      initialized.current = true;
-      
-      map.current = new mapboxgl.Map({
-        container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/streets-v12',
-        center: [-64.75, -16.50],
-        zoom: 5,
-        attributionControl: true
-      });
-
-      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-
-      map.current.on('load', () => {
-        console.log('🎉 ¡Mapa cargado correctamente!');
-        setMapLoaded(true);
-      });
-
-      map.current.on('error', (e) => {
-        console.error('❌ Error en mapa:', e);
-        setError('Error: ' + (e.error?.message || 'Desconocido'));
-      });
-
-    } catch (err) {
-      console.error('💥 Error crítico:', err);
-      setError('Error crítico: ' + err.message);
-    }
-
-    return () => {
-      console.log('🧹 Cleanup: desmontando componente mapa');
-      if (map.current) {
-        map.current.remove();
-        map.current = null;
-      }
-      initialized.current = false;
-    };
-  }, []);
-
-  // DEBUG
-  console.log('📊 Estado - Empleados:', empleadosConUbicacion.length, 'MapLoaded:', mapLoaded);
-
+  // 7. RENDER
   if (error) {
     return (
-      <div style={{
-        height: '400px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#fee2e2',
-        border: '2px dashed #dc2626',
-        borderRadius: '8px',
-        color: '#dc2626',
-        textAlign: 'center',
-        padding: '2rem'
-      }}>
-        <div>
-          <i className="fas fa-exclamation-triangle fa-2x" style={{ marginBottom: '1rem' }}></i>
-          <h3 style={{ margin: '0 0 0.5rem 0' }}>Error al cargar el mapa</h3>
-          <p style={{ margin: '0 0 0.5rem 0' }}>{error}</p>
-        </div>
+      <div style={{ padding: '20px', background: '#fee', color: '#c00' }}>
+        <strong>Error:</strong> {error}
       </div>
     );
   }
 
   return (
-    <div 
-      ref={mapContainer} 
-      style={{ 
-        height: '100%', 
-        width: '100%',
-        minHeight: '500px',
-        borderRadius: '8px',
-        overflow: 'hidden',
-        background: mapLoaded ? 'transparent' : '#f3f4f6',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: mapLoaded ? 'flex-start' : 'center',
-        border: mapLoaded ? '1px solid #e5e7eb' : '2px dashed #d1d5db',
-        color: '#6b7280',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-      }}
-    >
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {/* MAPA */}
+      <div 
+        ref={mapContainer} 
+        style={{ 
+          width: '100%', 
+          height: '500px',
+          border: '2px solid #ccc',
+          borderRadius: '8px'
+        }} 
+      />
+
+      {/* CONTROLES DE DIBUJO (solo en modo edición/creación) */}
+      {mode !== 'view' && (
+        <div style={{
+          position: 'absolute',
+          top: '10px',
+          right: '10px',
+          background: 'white',
+          padding: '15px',
+          borderRadius: '8px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+          zIndex: 10
+        }}>
+          <h4>🎨 Controles de Geocerca</h4>
+          <p>Usa los botones arriba a la izquierda para dibujar</p>
+          <button 
+            onClick={handleSaveGeocerca}
+            disabled={!currentGeocerca}
+            style={{
+              background: currentGeocerca ? '#4CAF50' : '#ccc',
+              color: 'white',
+              border: 'none',
+              padding: '10px 15px',
+              borderRadius: '5px',
+              cursor: currentGeocerca ? 'pointer' : 'not-allowed'
+            }}
+          >
+            💾 Guardar Geocerca
+          </button>
+        </div>
+      )}
+
+      {/* ESTADO DE CARGA */}
       {!mapLoaded && (
-        <div style={{ textAlign: 'center' }}>
-          <i className="fas fa-spinner fa-spin fa-2x" style={{ marginBottom: '1rem' }}></i>
-          <p style={{ margin: '0 0 0.25rem 0', fontWeight: 'bold' }}>Cargando mapa...</p>
-          <small>Cargando empleados y geocercas...</small>
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          background: 'white',
+          padding: '20px',
+          borderRadius: '8px',
+          textAlign: 'center'
+        }}>
+          <div>🔄 Cargando mapa...</div>
         </div>
       )}
     </div>
